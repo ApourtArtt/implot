@@ -454,16 +454,23 @@ void AddCustomTicks(const double* values, const char** labels, int n, ImVector<I
     }
 }
 
-void LabelTicks(ImVector<ImPlotTick> &ticks, bool scientific, ImGuiTextBuffer& buffer) {
+void LabelTicks(ImVector<ImPlotTick> &ticks, bool scientific, bool time_series, ImGuiTextBuffer& buffer) {
     char temp[32];
     for (int t = 0; t < ticks.Size; t++) {
         ImPlotTick *tk = &ticks[t];
         if (tk->ShowLabel && !tk->Labeled) {
             tk->BufferOffset = buffer.size();
-            if (scientific)
+            if (scientific) {
                 sprintf(temp, "%.0e", tk->PlotPos);
-            else
+            }
+            else if (time_series) {
+                auto ctime   = ImTimeFormatter(tk->PlotPos);
+                char* format = ctime.GetRangeFormattedString(tk->DisplayUnit);
+                sprintf(temp, "%s", format);
+            }
+            else {
                 sprintf(temp, "%.10g", tk->PlotPos);
+            }
             buffer.append(temp, temp + strlen(temp) + 1);
             tk->LabelSize = ImGui::CalcTextSize(buffer.Buf.Data + tk->BufferOffset);
             tk->Labeled = true;
@@ -609,6 +616,15 @@ bool BeginPlot(const char* title, const char* x_label, const char* y_label, cons
         plot.XAxis.Range.Min = ConstrainLog(plot.XAxis.Range.Min);
     if (ImHasFlag(plot.XAxis.Flags, ImPlotAxisFlags_LogScale))
         plot.XAxis.Range.Max = ConstrainLog(plot.XAxis.Range.Max);
+    if (ImHasFlag(plot.XAxis.Flags, ImPlotAxisFlags_Time)) {
+        plot.XAxis.Range.Min = ConstrainTime(plot.XAxis.Range.Min / ImTimeUnits_Size[ImTimeUnit_SEC]) * ImTimeUnits_Size[ImTimeUnit_SEC];
+        plot.XAxis.Range.Max = ConstrainTime(plot.XAxis.Range.Max / ImTimeUnits_Size[ImTimeUnit_SEC]) * ImTimeUnits_Size[ImTimeUnit_SEC];
+        // Plot min max cannot be less than 1 unit of data in time x axis , as double cannot go beyound that
+        if (plot.XAxis.Range.Max <= plot.XAxis.Range.Min + ImTimeUnits_Size[ImTimeUnit_US])
+            plot.XAxis.Range.Max = plot.XAxis.Range.Min + 2* ImTimeUnits_Size[ImTimeUnit_US];
+    }
+
+
     for (int i = 0; i < IMPLOT_Y_AXES; i++) {
         if (ImHasFlag(plot.YAxis[i].Flags, ImPlotAxisFlags_LogScale))
             plot.YAxis[i].Range.Min = ConstrainLog(plot.YAxis[i].Range.Min);
@@ -663,6 +679,17 @@ bool BeginPlot(const char* title, const char* x_label, const char* y_label, cons
 
     // adaptive divisions
     int x_divisions = ImMax(2, (int)IM_ROUND(0.003 * gp.BB_Canvas.GetWidth()));
+    if (ImHasFlag(plot.XAxis.Flags, ImPlotAxisFlags_Time)) {
+        ImTimeUnit_ baseUnit = DetermineTimeScaleUnitForAutoTicks(plot.XAxis.Range.Min, plot.XAxis.Range.Max, 5);  // 5 Division is an approximate number for more major ticks accomodation
+        ImTimeFormatter min_time(plot.XAxis.Range.Min);
+        char* string_time = min_time.GetRangeFormattedString(baseUnit);
+        ImVec2 string_time_size = ImGui::CalcTextSize(string_time);
+        int netDivisions = (int)IM_ROUND((gp.BB_Canvas.GetWidth()) / string_time_size.x);
+        x_divisions = (int)(netDivisions * 0.30);
+        if (x_divisions < 2)
+            x_divisions = 2;
+    }
+
     int y_divisions[IMPLOT_Y_AXES];
     for (int i = 0; i < IMPLOT_Y_AXES; i++) {
         y_divisions[i] = ImMax(2, (int)IM_ROUND(0.003 * gp.BB_Canvas.GetHeight()));
@@ -679,8 +706,14 @@ bool BeginPlot(const char* title, const char* x_label, const char* y_label, cons
                  ImHasFlag(plot.YAxis[i].Flags, ImPlotAxisFlags_TickLabels)) &&  y_divisions[i] > 1;
     }
     // get ticks
-    if (gp.RenderX && gp.NextPlotData.ShowDefaultTicksX)
-        AddDefaultTicks(plot.XAxis.Range, x_divisions, IMPLOT_SUB_DIV, ImHasFlag(plot.XAxis.Flags, ImPlotAxisFlags_LogScale), gp.XTicks);
+    if (gp.RenderX && gp.NextPlotData.ShowDefaultTicksX) {
+        if (ImHasFlag(plot.XAxis.Flags, ImPlotAxisFlags_Time)) {
+            AddDefaultTimeScaleTicks(plot.XAxis.Range, x_divisions, 2, gp.XTicks);
+        } 
+        else {
+            AddDefaultTicks(plot.XAxis.Range, x_divisions, IMPLOT_SUB_DIV, ImHasFlag(plot.XAxis.Flags, ImPlotAxisFlags_LogScale), gp.XTicks);
+        }
+    }
     for (int i = 0; i < IMPLOT_Y_AXES; i++) {
         if (gp.RenderY[i] && gp.NextPlotData.ShowDefaultTicksY[i]) {
             AddDefaultTicks(plot.YAxis[i].Range, y_divisions[i], IMPLOT_SUB_DIV, ImHasFlag(plot.YAxis[i].Flags, ImPlotAxisFlags_LogScale), gp.YTicks[i]);
@@ -689,12 +722,12 @@ bool BeginPlot(const char* title, const char* x_label, const char* y_label, cons
 
     // label ticks
     if (gp.X.HasLabels)
-        LabelTicks(gp.XTicks, ImHasFlag(plot.XAxis.Flags, ImPlotAxisFlags_Scientific), gp.XTickLabels);
+        LabelTicks(gp.XTicks, ImHasFlag(plot.XAxis.Flags, ImPlotAxisFlags_Scientific), ImHasFlag(plot.XAxis.Flags, ImPlotAxisFlags_Time), gp.XTickLabels);
 
     float max_label_widths[IMPLOT_Y_AXES];
     for (int i = 0; i < IMPLOT_Y_AXES; i++) {
         if (gp.Y[i].Present && gp.Y[i].HasLabels) {
-            LabelTicks(gp.YTicks[i], ImHasFlag(plot.YAxis[i].Flags, ImPlotAxisFlags_Scientific), gp.YTickLabels[i]);
+            LabelTicks(gp.YTicks[i], ImHasFlag(plot.YAxis[i].Flags, ImPlotAxisFlags_Scientific), false, gp.YTickLabels[i]);
             max_label_widths[i] = MaxTickLabelWidth(gp.YTicks[i]);
         }
         else {
@@ -1853,7 +1886,7 @@ void ShowColormapScale(double scale_min, double scale_max, float height) {
     ticks.shrink(0);
     txt_buff.Buf.shrink(0);
     AddDefaultTicks(range, 10, 0, false, ticks);
-    LabelTicks(ticks, false, txt_buff);
+    LabelTicks(ticks, false, false, txt_buff);
     float max_width = 0;
     for (int i = 0; i < ticks.Size; ++i)
         max_width = ticks[i].LabelSize.x > max_width ? ticks[i].LabelSize.x : max_width;
@@ -2049,6 +2082,336 @@ void SetColormap(ImPlotColormap colormap, int samples) {
 
 void SetColormap(const ImVec4* colors, int num_colors) {
     SetColormapEx(colors, num_colors, GImPlot);
+}
+
+//------------------------------------------------------------------------------
+// TIME
+//------------------------------------------------------------------------------
+
+ImTimeUnit_ DetermineTimeScaleUnitForAutoTicks(double min,double max, int capacity) {
+    for (int i = ImTimeUnit_US ; i < ImTimeUnit_COUNT; ++i) {    
+        double factor = (double)ImTimeUnits_Steps[i];
+        if (ImTimeUnits_Common[i] && ceil((max - min) / (factor * ImTimeUnits_Size[i])) <= capacity) {
+            return (ImTimeUnit_)(i);
+        }
+    }
+    return (ImTimeUnit_)(ImTimeUnit_COUNT - 1);
+}
+
+inline int NiceNumTime(double x, ImTimeUnit_ unit) {
+    int f = (int)x;
+    if (unit < ImTimeUnit_SEC) {
+        return (int)NiceNum(x, 1);
+
+    }
+    if (unit == ImTimeUnit_SEC || unit == ImTimeUnit_MIN) {
+        if (f < 2)
+            return 1;
+        if (f < 4)
+            return 2;
+        if (f < 10)
+            return 5;
+        if (f < 15) {
+            return 10;
+        } 
+        if (f < 22.5) { // Next upper threshold mid (15, 30)
+            return 15;
+        } 
+        if (f < 45) {
+            return 30;
+        }
+        if (f < 60) {
+            return 60;
+        }
+        int fgt60 = (f / 60) * 60;
+        return fgt60;
+    }
+    if (unit == ImTimeUnit_HR) {
+        if (f < 2)
+            return 1;
+        if (f < 4)
+            return 2;
+        if (f < 6)
+            return 4;
+        if (f < 12)
+            return 6;
+        if (f < 24)
+            return 12;
+        return (f / 24) * 24;
+    } 
+    if (unit == ImTimeUnit_DAY) {
+        if (f < 30)     // 2 months approx [too much overlapping in we go by ]
+            return (int)NiceNum(x, 1);
+
+        // Still an issue [months have different length]
+        return (f / 30) * 30;
+
+    } 
+    if (unit == ImTimeUnit_MON) {
+        if (f < 2)
+            return 1;
+        if (f < 6)
+            return 6;
+        if (f < 12)
+            return 12;
+        return (f / 12) * 12;
+    }
+    // Years 
+    return (int)NiceNum(x, 1);
+}
+
+ImTimeStepper::ImTimeStepper(double microSecondTimeStamp, ImTimeUnit_ _unit, int roundedToUnits) {
+    long long USTimeStamp = (long long)microSecondTimeStamp;
+    _s = USTimeStamp / ImTimeUnits_Size[ImTimeUnit_SEC];
+    _us = USTimeStamp - _s * ImTimeUnits_Size[ImTimeUnit_SEC];
+    this->unit = _unit;
+    this->Floor(roundedToUnits);
+}
+
+void ImTimeStepper::Step(int n   /* number of steps */) {
+    if (unit < ImTimeUnit_SEC) {
+        _us += (ImTimeUnits_Size[unit] / ImTimeUnits_Size[ImTimeUnit_US]) * n;
+        // Check Overflow to seconds 
+        long long seconds = _us / ImTimeUnits_Size[ImTimeUnit_SEC];
+        _us = _us - seconds * ImTimeUnits_Size[ImTimeUnit_SEC];
+        _s += seconds;
+    } else {
+        _s += n * (ImTimeUnits_Size[unit] / ImTimeUnits_Size[ImTimeUnit_SEC]);
+    }
+}
+
+void ImTimeStepper::Floor(int step_size) {
+    if (_s < 0) {
+        // Ideally this should never have been called
+        return;
+    }
+    struct tm* base_time = localtime(&_s);
+    if (base_time == nullptr) {
+        return;
+    }
+
+    // Round Down to nearest unit
+    if (unit == ImTimeUnit_US) {
+        long long ms = (_us / ImTimeUnits_Size[ImTimeUnit_MS]) * ImTimeUnits_Size[ImTimeUnit_MS];
+        long long uspart = _us - ms;
+        uspart = (uspart / step_size) * step_size;
+        _us = ms + uspart;
+    }
+
+    if (unit == ImTimeUnit_MS) {
+        _us = (((_us / ImTimeUnits_Size[ImTimeUnit_MS]) / step_size) * step_size) * ImTimeUnits_Size[ImTimeUnit_MS];
+    }
+
+    if (unit >= ImTimeUnit_SEC) {
+        _us = 0;
+    }
+
+    if (unit == ImTimeUnit_SEC) {
+        base_time->tm_sec = (base_time->tm_sec / step_size) * step_size;
+    }
+
+    if (unit == ImTimeUnit_MIN) {
+        base_time->tm_sec = 0;
+        base_time->tm_min = (base_time->tm_min / step_size) * step_size;
+    }
+
+    if (unit == ImTimeUnit_HR) {
+        base_time->tm_sec = 0;
+        base_time->tm_min = 0;
+        base_time->tm_hour = (base_time->tm_hour / step_size) * step_size;
+    }
+    if (unit == ImTimeUnit_DAY) {
+        base_time->tm_sec = 0;
+        base_time->tm_min = 0;
+        base_time->tm_hour = 0;
+        base_time->tm_mday = (base_time->tm_mday / step_size) * step_size;
+        if (base_time->tm_mday == 0) {
+            base_time->tm_mday = 1;
+        }
+
+    }
+    if (unit == ImTimeUnit_MON) {
+        base_time->tm_sec = 0;
+        base_time->tm_min = 0;
+        base_time->tm_hour = 0;
+        base_time->tm_mday = 1;
+        base_time->tm_mon = (base_time->tm_mon / step_size) * step_size;
+    }
+    if (unit == ImTimeUnit_YEAR) {
+        base_time->tm_sec = 0;
+        base_time->tm_min = 0;
+        base_time->tm_hour = 0;
+        base_time->tm_mday = 1;
+        base_time->tm_mon = 0;
+    }
+    _s = mktime(base_time);
+}
+
+double ImTimeStepper::GetIntegral() {
+    return _s * ImTimeUnits_Size[ImTimeUnit_SEC] + _us;
+}
+
+ImTimeFormatter::ImTimeFormatter(double microSecondTimeStamp) {
+    // Don't keep decimals
+    long long USTimeStamp = (long long)microSecondTimeStamp;
+    _s = USTimeStamp / US_IN_SEC;
+    _us = USTimeStamp - _s * US_IN_SEC;
+}
+
+char *ImTimeFormatter::GetFullFormattedString() {
+    ResetBuf();
+    if (_s < 0) {
+        // Do Nothing
+        //WriteRawTimeToBuf();
+        return buf;
+    }
+    else {
+        WriteFormattedTimeToBuf("%Y/%m/%e %I:%M:%S.");
+        WritePaddedMicroSecondsToBuf();
+    }
+    return buf;
+}
+
+char *ImTimeFormatter::GetRangeFormatterPrefixString(ImTimeUnit_ unit) {
+    ResetBuf();
+    if (_s < 0) {
+        // WriteRawTimeToBuf();
+        return buf;
+    }
+    WriteFormattedTimeToBuf(ImTimeUnits_PrefixValueFormats[unit]);
+    return buf;
+}
+
+char *ImTimeFormatter::GetRangeFormattedString(ImTimeUnit_ unit) {
+    ResetBuf();
+    if (_s < 0) {
+        //WriteRawTimeToBuf();
+        return buf;
+    }
+    WriteFormattedTimeToBuf(ImTimeUnits_ValueFormats[unit]);
+    if (unit == ImTimeUnit_MS) {
+        WritePaddedMilliSecondsToBuf();
+    }
+    else if (unit == ImTimeUnit_US) {
+        WritePaddedMicroSecondsToBuf();
+    }
+    return buf;
+}
+
+void ImTimeFormatter::WriteRawTimeToBuf() {
+    sprintf(buf, "%lld", GetIntegral());
+}
+
+void ImTimeFormatter::WriteFormattedTimeToBuf(const char *format) {
+    auto t = localtime(&_s);
+    if (t != nullptr) {
+        int copied = strftime(buf, 80, format, localtime(&_s));
+        if (copied) {
+            ptr_index = copied;
+        }
+    }
+    else {
+        // We have crosses max supported date time range
+        WriteRawTimeToBuf();
+    }
+}
+
+void ImTimeFormatter::WritePaddedMilliSecondsToBuf() {
+    snprintf(buf + ptr_index, 80 - ptr_index, "%03d", (int)GetMilliseconds());
+}
+
+void ImTimeFormatter::WritePaddedMicroSecondsToBuf() {
+    snprintf(buf + ptr_index, 80 - ptr_index, "%06d", (int)GetMicroseconds());
+}
+
+long long ImTimeFormatter::GetIntegral() {
+    return _s * US_IN_SEC + _us;
+}
+
+long long ImTimeFormatter::GetSeconds() {
+    return _s;
+}
+
+long long ImTimeFormatter::GetMicroseconds() {
+    return _us;
+}
+
+long long ImTimeFormatter::GetMilliseconds() {
+    return GetMicroseconds() / 1000;
+}
+
+void ImTimeFormatter::ResetBuf() {
+    buf[0] = '\0';
+    ptr_index = 0;
+}
+
+
+void AddDefaultTimeScaleTicks(const ImPlotRange& range, int nMajor, int nMinor, ImVector<ImPlotTick>& out) {
+    auto time_range = range.Size();
+
+    if (time_range < ImTimeUnits_Size[ImTimeUnit_US]) {
+        return;
+    }
+
+    ImTimeUnit_ baseUnit = DetermineTimeScaleUnitForAutoTicks(range.Min, range.Max, nMajor);
+
+    int step_size = (int)NiceNumTime(((range.Max - range.Min) / ImTimeUnits_Size[baseUnit]) / (nMajor-1), baseUnit);
+    step_size = step_size < 1 ? 1 : step_size;
+    ImTimeStepper graphMin = ImTimeStepper(range.Min, baseUnit, step_size);
+    ImTimeStepper graphMax = ImTimeStepper(range.Max, baseUnit, step_size);
+    graphMax.Step(step_size);
+    double graphMaxIntegral = graphMax.GetIntegral();
+    double graphMinIntergral = graphMin.GetIntegral();
+    while (true)
+    {
+
+        graphMinIntergral = graphMin.GetIntegral();
+        if (graphMinIntergral > graphMaxIntegral) {
+            break;
+        }
+        if (graphMinIntergral >= range.Min && graphMinIntergral <= range.Max) {
+            out.push_back(ImPlotTick(graphMinIntergral, true, true, baseUnit));
+        }
+        auto lastMajorIntegral = graphMinIntergral;
+
+        graphMin.Step(step_size);
+
+
+        auto nextMajorIntegral = graphMin.GetIntegral();
+        if (nMinor > 1) {   // nMinor (Auto Adjusted to new units)
+            int step_size_minor = 0;
+
+            if (step_size > 15) {
+                step_size_minor = step_size / 5;
+            }
+            else {
+                // index wise mapping of major step_size to minor 
+                static const int minor_step_sizes_mapping[] = { 0 , 0, 1, 1, 2, 1, 2, 1, 2, 3, 2, 1, 3, 1, 2, 3 };
+                step_size_minor = minor_step_sizes_mapping[step_size];
+            }
+
+            if (step_size_minor < 1) {
+                continue;
+            }
+
+            auto currentMinor = ImTimeStepper(lastMajorIntegral, baseUnit, step_size);
+
+            while (true) {
+                double currentMinorIntergral = currentMinor.GetIntegral();
+                if (currentMinorIntergral >= nextMajorIntegral) {
+                    break;
+                }
+                if (currentMinorIntergral > lastMajorIntegral&& currentMinorIntergral < nextMajorIntegral) {
+                    out.push_back(ImPlotTick(currentMinorIntergral, false, false, baseUnit));
+                }
+                currentMinor.Step(step_size_minor);
+            }
+        }
+    }
+}
+
+double ConstrainTime(double val) {
+    return val < IM_MIN_SEC_TIME_LIMIT ? IM_MIN_SEC_TIME_LIMIT : val > IM_MAX_SEC_TIME_LIMIT ? IM_MAX_SEC_TIME_LIMIT : val;
 }
 
 }  // namespace ImPlot

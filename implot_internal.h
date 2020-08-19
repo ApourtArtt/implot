@@ -36,6 +36,7 @@
 #endif
 
 #include "imgui_internal.h"
+#include "time.h"
 
 #ifndef IMPLOT_VERSION
 #error Must include implot.h before implot_internal.h
@@ -156,6 +157,29 @@ struct ImArray {
 // [SECTION] ImPlot Structs
 //-----------------------------------------------------------------------------
 
+enum ImTimeUnit_ {
+    ImTimeUnit_US = 0,
+    ImTimeUnit_MS,
+    ImTimeUnit_SEC,
+    ImTimeUnit_MIN,
+    ImTimeUnit_HR,
+    ImTimeUnit_DAY,
+    ImTimeUnit_WK,
+    ImTimeUnit_MON,
+    ImTimeUnit_QUATER,
+    ImTimeUnit_YEAR,
+    ImTimeUnit_COUNT
+};
+
+static const long long ImTimeUnits_Size[] =  {    1, 1000, 1000000, 60000000, 3600000000, 86400000000, 604800000000, 2628000000000, 7884000000000, 31540000000000 };
+static const long long ImTimeUnits_Steps[] = { 1000, 1000,      60,       60,         24,          30,            4,            12,             4,      100000000 };
+static const int ImTimeUnits_Common[] =      {    1,    1,       1,        1,          1,           1,            0,             1,             0,              1 };
+static const char* ImTimeUnits_ValueFormats[] =       { "%S."            , "%M:%S."     , "%H:%M:%S",  "%H:%M"   ,  "%e %H", "%m/%d", "%m/%d", "%Y/%m/%d", "%Y/%m", "%Y"};
+static const char* ImTimeUnits_PrefixValueFormats[] = { "%Y/%m/%d %H:%M" , "%Y/%m/%d %H", "%Y/%m/%d",  "%Y/%m/%d",  "%Y/%m", "%Y"   , "%Y"   , "%Y"   , "%Y"   , "%Y"};
+
+#define IM_MAX_SEC_TIME_LIMIT 32503683600
+#define IM_MIN_SEC_TIME_LIMIT 0
+
 // ImPlotPoint with positive/negative error values
 struct ImPlotPointError 
 {
@@ -176,12 +200,14 @@ struct ImPlotTick
     bool   Major;
     bool   ShowLabel;
     bool   Labeled;
+    ImTimeUnit_ DisplayUnit;
 
-    ImPlotTick(double value, bool major, bool show_label) {
+    ImPlotTick(double value, bool major, bool show_label, ImTimeUnit_ display_unit = ImTimeUnit_US) {
         PlotPos   = value;
         Major     = major;
         ShowLabel = show_label;
         Labeled   = false;
+        DisplayUnit = display_unit;
     }
 };
 
@@ -443,7 +469,7 @@ void AddDefaultTicks(const ImPlotRange& range, int nMajor, int nMinor, bool logs
 // Populates a list of ImPlotTicks with custom spaced and labeled ticks
 void AddCustomTicks(const double* values, const char** labels, int n, ImVector<ImPlotTick>& ticks, ImGuiTextBuffer& buffer);
 // Creates label information for a list of ImPlotTick
-void LabelTicks(ImVector<ImPlotTick> &ticks, bool scientific, ImGuiTextBuffer& buffer);
+void LabelTicks(ImVector<ImPlotTick> &ticks, bool scientific, bool time_series, ImGuiTextBuffer& buffer);
 // Gets the widest visible (i.e. ShowLabel = true) label size from a list of ticks
 float MaxTickLabelWidth(const ImVector<ImPlotTick>& ticks);
 // Sums the widths of visible ticks (i.e. ShowLabel = true) ticks
@@ -567,6 +593,46 @@ inline ImVec4 GetMarkerFillColor(ImPlotItem* item) {
 inline ImVec4 GetErrorBarColor() {
     return ColorIsAuto(ImPlotCol_ErrorBar) ? ImGui::GetStyleColorVec4(ImGuiCol_Text) : GImPlot->Style.Colors[ImPlotCol_ErrorBar];
 }
+
+//-----------------------------------------------------------------------------
+// [SECTION] Time Utils
+//-----------------------------------------------------------------------------
+
+struct ImTimeStepper {
+    ImTimeStepper(double microSecondTimeStamp, ImTimeUnit_ unit, int roundedToUnits);
+    void Floor(int step_size);   // Round down timestamp to nearest step size units multiple (Internal only )
+    void Step(int step_size);
+    double GetIntegral();
+    time_t _s;
+    long long  _us;   
+    ImTimeUnit_ unit;
+};
+
+struct ImTimeFormatter {
+    ImTimeFormatter(double microSecondTimeStamp);
+    char* GetFullFormattedString();
+    char* GetRangeFormatterPrefixString(ImTimeUnit_ unit);
+    char* GetRangeFormattedString(ImTimeUnit_ unit);
+    void  WriteRawTimeToBuf();
+    void  WriteFormattedTimeToBuf(const char* format);
+    void  WritePaddedMilliSecondsToBuf();
+    void  WritePaddedMicroSecondsToBuf();
+    long long GetIntegral();
+    long long GetSeconds();
+    long long GetMilliseconds();
+    long long GetMicroseconds();
+    void ResetBuf();
+    time_t _s;
+    long long  _us;
+    static const  long long  US_IN_SEC = 1000000;
+    char buf[80];
+    int ptr_index = 0;
+};
+
+ImTimeUnit_ DetermineTimeScaleUnitForAutoTicks(double min,double max, int capacity);
+int NiceNumTime(double x, ImTimeUnit_ unit);
+void AddDefaultTimeScaleTicks(const ImPlotRange& range, int nMajor, int nMinor, ImVector<ImPlotTick>& out); 
+double ConstrainTime(double val);
 
 //-----------------------------------------------------------------------------
 // [SECTION] Internal / Experimental Plotters

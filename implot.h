@@ -68,6 +68,7 @@ enum ImPlotAxisFlags_ {
     ImPlotAxisFlags_LockMax    = 1 << 5, // the axis maximum value will be locked when panning/zooming
     ImPlotAxisFlags_LogScale   = 1 << 6, // a logartithmic (base 10) axis scale will be used
     ImPlotAxisFlags_Scientific = 1 << 7, // scientific notation will be used for tick labels if displayed (WIP, not very good yet)
+    ImPlotAxisFlags_Time       = 1 << 8, // treat X axis data as timestamp in micro seconds
     ImPlotAxisFlags_Default    = ImPlotAxisFlags_GridLines | ImPlotAxisFlags_TickMarks | ImPlotAxisFlags_TickLabels,
     ImPlotAxisFlags_Auxiliary  = ImPlotAxisFlags_Default & ~ImPlotAxisFlags_GridLines,
 };
