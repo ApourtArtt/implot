@@ -24,6 +24,8 @@
 
 #pragma once
 #include "imgui.h"
+#include <vector>
+#include <string>
 
 #define IMPLOT_VERSION "0.5 WIP"
 
@@ -51,7 +53,7 @@ enum ImPlotFlags_ {
     ImPlotFlags_Query       = 1 << 4,  // the user will be able to draw query rects with middle-mouse
     ImPlotFlags_ContextMenu = 1 << 5,  // the user will be able to open context menus with double-right click
     ImPlotFlags_Crosshairs  = 1 << 6,  // the default mouse cursor will be replaced with a crosshair when hovered
-    ImPlotFlags_AntiAliased = 1 << 7,  // plot lines will be software anti-aliased (not recommended for density plots, prefer MSAA)
+    ImPlotFlags_AntiAliased = 1 << 7,  // plot lines will be software anti-aliased (not recommended, prefer MSAA)
     ImPlotFlags_NoChild     = 1 << 8,  // a child window region will not be used to capture mouse scroll (can boost performance for single ImGui window applications)
     ImPlotFlags_YAxis2      = 1 << 9,  // enable a 2nd y-axis
     ImPlotFlags_YAxis3      = 1 << 10, // enable a 3rd y-axis
@@ -67,6 +69,7 @@ enum ImPlotAxisFlags_ {
     ImPlotAxisFlags_LockMin    = 1 << 4, // the axis minimum value will be locked when panning/zooming
     ImPlotAxisFlags_LockMax    = 1 << 5, // the axis maximum value will be locked when panning/zooming
     ImPlotAxisFlags_LogScale   = 1 << 6, // a logartithmic (base 10) axis scale will be used
+    ImPlotAxisFlags_Scientific = 1 << 7, // scientific notation will be used for tick labels if displayed (WIP, not very good yet)
     ImPlotAxisFlags_Default    = ImPlotAxisFlags_GridLines | ImPlotAxisFlags_TickMarks | ImPlotAxisFlags_TickLabels,
     ImPlotAxisFlags_Auxiliary  = ImPlotAxisFlags_TickMarks | ImPlotAxisFlags_TickLabels,
 };
@@ -203,7 +206,6 @@ struct ImPlotStyle {
     float        ErrorBarWeight;          // = 1.5,    error bar whisker weight in pixels
     float        DigitalBitHeight;        // = 8,      digital channels bit height (at y = 1.0f) in pixels
     float        DigitalBitGap;           // = 4,      digital channels bit padding gap in pixels
-    bool         AntiAliasedLines;        // = false,  enable global anti-aliasing on plot lines (overrides ImPlotFlags_AntiAliased)
     // plot styling variables
     float        PlotBorderSize;          // = 1,      line thickness of border around plot area
     float        MinorAlpha;              // = 0.25    alpha multiplier applied to minor axis grid lines
@@ -286,69 +288,69 @@ void EndPlot();
 //-----------------------------------------------------------------------------
 
 // Plots a standard 2D line plot.
-void PlotLine(const char* label_id, const float* values, int count, int offset = 0, int stride = sizeof(float));
-void PlotLine(const char* label_id, const double* values, int count, int offset = 0, int stride = sizeof(double));
-void PlotLine(const char* label_id, const float* xs, const float* ys, int count, int offset = 0, int stride = sizeof(float));
-void PlotLine(const char* label_id, const double* xs, const double* ys, int count, int offset = 0, int stride = sizeof(double));
+void PlotLine(const char* label_id, std::vector<float> values, int offset = 0, int stride = sizeof(float));
+void PlotLine(const char* label_id, std::vector<double> values, int offset = 0, int stride = sizeof(double));
+void PlotLine(const char* label_id, std::vector<float> xs, std::vector<float> ys, int offset = 0, int stride = sizeof(float));
+void PlotLine(const char* label_id, std::vector<double> xs, std::vector<double> ys, int offset = 0, int stride = sizeof(double));
 void PlotLine(const char* label_id, const ImVec2* data, int count, int offset = 0);
 void PlotLine(const char* label_id, const ImPlotPoint* data, int count, int offset = 0);
 void PlotLine(const char* label_id, ImPlotPoint (*getter)(void* data, int idx), void* data, int count, int offset = 0);
 
 // Plots a standard 2D scatter plot. Default marker is ImPlotMarker_Circle.
-void PlotScatter(const char* label_id, const float* values, int count, int offset = 0, int stride = sizeof(float));
-void PlotScatter(const char* label_id, const double* values, int count, int offset = 0, int stride = sizeof(double));
-void PlotScatter(const char* label_id, const float* xs, const float* ys, int count, int offset = 0, int stride = sizeof(float));
-void PlotScatter(const char* label_id, const double* xs, const double* ys, int count, int offset = 0, int stride = sizeof(double));
+void PlotScatter(const char* label_id, std::vector<float> values, int offset = 0, int stride = sizeof(float));
+void PlotScatter(const char* label_id, std::vector<double> values, int offset = 0, int stride = sizeof(double));
+void PlotScatter(const char* label_id, std::vector<float> xs, std::vector<float> ys, int offset = 0, int stride = sizeof(float));
+void PlotScatter(const char* label_id, std::vector<double> xs, std::vector<double> ys, int offset = 0, int stride = sizeof(double));
 void PlotScatter(const char* label_id, const ImVec2* data, int count, int offset = 0);
 void PlotScatter(const char* label_id, const ImPlotPoint* data, int count, int offset = 0);
 void PlotScatter(const char* label_id, ImPlotPoint (*getter)(void* data, int idx), void* data, int count, int offset = 0);
 
 // Plots a shaded (filled) region between two lines, or a line and a horizontal reference.
-void PlotShaded(const char* label_id, const float* values, int count, float y_ref = 0, int offset = 0, int stride = sizeof(float));
-void PlotShaded(const char* label_id, const double* values, int count, double y_ref = 0, int offset = 0, int stride = sizeof(double));
-void PlotShaded(const char* label_id, const float* xs, const float* ys, int count, float y_ref = 0, int offset = 0, int stride = sizeof(float));
-void PlotShaded(const char* label_id, const double* xs, const double* ys, int count, double y_ref = 0, int offset = 0, int stride = sizeof(double));
-void PlotShaded(const char* label_id, const float* xs, const float* ys1, const float* ys2, int count, int offset = 0, int stride = sizeof(float));
-void PlotShaded(const char* label_id, const double* xs, const double* ys1, const double* ys2, int count, int offset = 0, int stride = sizeof(double));
+void PlotShaded(const char* label_id, std::vector<float> values, float y_ref = 0, int offset = 0, int stride = sizeof(float));
+void PlotShaded(const char* label_id, std::vector<double> values, double y_ref = 0, int offset = 0, int stride = sizeof(double));
+void PlotShaded(const char* label_id, std::vector<float> xs, std::vector<float> ys, float y_ref = 0, int offset = 0, int stride = sizeof(float));
+void PlotShaded(const char* label_id, std::vector<double> xs, std::vector<double> ys, double y_ref = 0, int offset = 0, int stride = sizeof(double));
+void PlotShaded(const char* label_id, std::vector<float> xs, std::vector<float> ys1, std::vector<float> ys2, int offset = 0, int stride = sizeof(float));
+void PlotShaded(const char* label_id, std::vector<double> xs, std::vector<double> ys1, std::vector<double> ys2, int offset = 0, int stride = sizeof(double));
 void PlotShaded(const char* label_id, ImPlotPoint (*getter1)(void* data, int idx), void* data1, ImPlotPoint (*getter2)(void* data, int idx), void* data2, int count, int offset = 0);
 
 // Plots a vertical bar graph. #width and #shift are in X units.
-void PlotBars(const char* label_id, const float* values, int count, float width = 0.67f, float shift = 0, int offset = 0, int stride = sizeof(float));
-void PlotBars(const char* label_id, const double* values, int count, double width = 0.67f, double shift = 0, int offset = 0, int stride = sizeof(double));
-void PlotBars(const char* label_id, const float* xs, const float* ys, int count, float width, int offset = 0, int stride = sizeof(float));
-void PlotBars(const char* label_id, const double* xs, const double* ys, int count, double width, int offset = 0, int stride = sizeof(double));
+void PlotBars(const char* label_id, std::vector<float> values, float width = 0.67f, float shift = 0, int offset = 0, int stride = sizeof(float));
+void PlotBars(const char* label_id, std::vector<double> values, double width = 0.67f, double shift = 0, int offset = 0, int stride = sizeof(double));
+void PlotBars(const char* label_id, std::vector<float> xs, std::vector<float> ys, float width, int offset = 0, int stride = sizeof(float));
+void PlotBars(const char* label_id, std::vector<double> xs, std::vector<double> ys, double width, int offset = 0, int stride = sizeof(double));
 void PlotBars(const char* label_id, ImPlotPoint (*getter)(void* data, int idx), void* data, int count, double width, int offset = 0);
 
 // Plots a horizontal bar graph. #height and #shift are in Y units.
-void PlotBarsH(const char* label_id, const float* values, int count, float height = 0.67f, float shift = 0, int offset = 0, int stride = sizeof(float));
-void PlotBarsH(const char* label_id, const double* values, int count, double height = 0.67f, double shift = 0, int offset = 0, int stride = sizeof(double));
-void PlotBarsH(const char* label_id, const float* xs, const float* ys, int count, float height,  int offset = 0, int stride = sizeof(float));
-void PlotBarsH(const char* label_id, const double* xs, const double* ys, int count, double height,  int offset = 0, int stride = sizeof(double));
+void PlotBarsH(const char* label_id, std::vector<float> values, float height = 0.67f, float shift = 0, int offset = 0, int stride = sizeof(float));
+void PlotBarsH(const char* label_id, std::vector<double> values, double height = 0.67f, double shift = 0, int offset = 0, int stride = sizeof(double));
+void PlotBarsH(const char* label_id, std::vector<float> xs, std::vector<float> ys, float height,  int offset = 0, int stride = sizeof(float));
+void PlotBarsH(const char* label_id, std::vector<double> xs, std::vector<double> ys, double height,  int offset = 0, int stride = sizeof(double));
 void PlotBarsH(const char* label_id, ImPlotPoint (*getter)(void* data, int idx), void* data, int count, double height,  int offset = 0);
 
 // Plots vertical error bar. The label_id should be the same as the label_id of the associated line or bar plot.
-void PlotErrorBars(const char* label_id, const float* xs, const float* ys, const float* err, int count, int offset = 0, int stride = sizeof(float));
-void PlotErrorBars(const char* label_id, const double* xs, const double* ys, const double* err, int count, int offset = 0, int stride = sizeof(double));
-void PlotErrorBars(const char* label_id, const float* xs, const float* ys, const float* neg, const float* pos, int count, int offset = 0, int stride = sizeof(float));
-void PlotErrorBars(const char* label_id, const double* xs, const double* ys, const double* neg, const double* pos, int count, int offset = 0, int stride = sizeof(double));
+void PlotErrorBars(const char* label_id, std::vector<float> xs, std::vector<float> ys, std::vector<float> err, int offset = 0, int stride = sizeof(float));
+void PlotErrorBars(const char* label_id, std::vector<double> xs, std::vector<double> ys, std::vector<double> err, int offset = 0, int stride = sizeof(double));
+void PlotErrorBars(const char* label_id, std::vector<float> xs, std::vector<float> ys, std::vector<float> neg, std::vector<float> pos, int offset = 0, int stride = sizeof(float));
+void PlotErrorBars(const char* label_id, std::vector<double> xs, std::vector<double> ys, std::vector<double> neg, std::vector<double> pos, int offset = 0, int stride = sizeof(double));
 
 // Plots horizontal error bars. The label_id should be the same as the label_id of the associated line or bar plot.
-void PlotErrorBarsH(const char* label_id, const float* xs, const float* ys, const float* err, int count, int offset = 0, int stride = sizeof(float));
-void PlotErrorBarsH(const char* label_id, const double* xs, const double* ys, const double* err, int count, int offset = 0, int stride = sizeof(double));
-void PlotErrorBarsH(const char* label_id, const float* xs, const float* ys, const float* neg, const float* pos, int count, int offset = 0, int stride = sizeof(float));
-void PlotErrorBarsH(const char* label_id, const double* xs, const double* ys, const double* neg, const double* pos, int count, int offset = 0, int stride = sizeof(double));
+void PlotErrorBarsH(const char* label_id, std::vector<float> xs, std::vector<float> ys, std::vector<float> err, int offset = 0, int stride = sizeof(float));
+void PlotErrorBarsH(const char* label_id, std::vector<double> xs, std::vector<double> ys, std::vector<double> err, int offset = 0, int stride = sizeof(double));
+void PlotErrorBarsH(const char* label_id, std::vector<float> xs, std::vector<float> ys, std::vector<float> neg, std::vector<float> pos, int offset = 0, int stride = sizeof(float));
+void PlotErrorBarsH(const char* label_id, std::vector<double> xs, std::vector<double> ys, std::vector<double> neg, std::vector<double> pos, int offset = 0, int stride = sizeof(double));
 
 // Plots a pie chart. If the sum of values > 1 or normalize is true, each value will be normalized. Center and radius are in plot units. #label_fmt can be set to NULL for no labels.
-void PlotPieChart(const char** label_ids, const float* values, int count, float x, float y, float radius, bool normalize = false, const char* label_fmt = "%.1f", float angle0 = 90);
-void PlotPieChart(const char** label_ids, const double* values, int count, double x, double y, double radius, bool normalize = false, const char* label_fmt = "%.1f", double angle0 = 90);
+void PlotPieChart(const char** label_ids, std::vector<float> values, float x, float y, float radius, bool normalize = false, const char* label_fmt = "%.1f", float angle0 = 90);
+void PlotPieChart(const char** label_ids, std::vector<double> values, double x, double y, double radius, bool normalize = false, const char* label_fmt = "%.1f", double angle0 = 90);
 
 // Plots a 2D heatmap chart. Values are expected to be in row-major order. #label_fmt can be set to NULL for no labels.
-void PlotHeatmap(const char* label_id, const float* values, int rows, int cols, float scale_min, float scale_max, const char* label_fmt = "%.1f", const ImPlotPoint& bounds_min = ImPlotPoint(0,0), const ImPlotPoint& bounds_max = ImPlotPoint(1,1));
-void PlotHeatmap(const char* label_id, const double* values, int rows, int cols, double scale_min, double scale_max, const char* label_fmt = "%.1f", const ImPlotPoint& bounds_min = ImPlotPoint(0,0), const ImPlotPoint& bounds_max = ImPlotPoint(1,1));
+void PlotHeatmap(const char* label_id, std::vector<float> values, int rows, int cols, float scale_min, float scale_max, const char* label_fmt = "%.1f", const ImPlotPoint& bounds_min = ImPlotPoint(0,0), const ImPlotPoint& bounds_max = ImPlotPoint(1,1));
+void PlotHeatmap(const char* label_id, std::vector<double> values, int rows, int cols, double scale_min, double scale_max, const char* label_fmt = "%.1f", const ImPlotPoint& bounds_min = ImPlotPoint(0,0), const ImPlotPoint& bounds_max = ImPlotPoint(1,1));
 
 // Plots digital data. Digital plots do not respond to y drag or zoom, and are always referenced to the bottom of the plot.
-void PlotDigital(const char* label_id, const float* xs, const float* ys, int count, int offset = 0, int stride = sizeof(float));
-void PlotDigital(const char* label_id, const double* xs, const double* ys, int count, int offset = 0, int stride = sizeof(double));
+void PlotDigital(const char* label_id, std::vector<float> xs, std::vector<float> ys, int offset = 0, int stride = sizeof(float));
+void PlotDigital(const char* label_id, std::vector<double> xs, std::vector<double> ys, int offset = 0, int stride = sizeof(double));
 void PlotDigital(const char* label_id, ImPlotPoint (*getter)(void* data, int idx), void* data, int count, int offset = 0);
 
 // Plots a centered text label at point x,y with optional pixel offset. Text color can be changed with ImGui::PushStyleColor(ImGuiCol_Text, ...).
@@ -369,12 +371,12 @@ void SetNextPlotLimitsY(double y_min, double y_max, ImGuiCond cond = ImGuiCond_O
 void FitNextPlotAxes(bool x = true, bool y = true, bool y2 = true, bool y3 = true);
 
 // Set the X axis ticks and optionally the labels for the next plot.
-void SetNextPlotTicksX(const double* values, int n_ticks, const char** labels = NULL, bool show_default = false);
-void SetNextPlotTicksX(double x_min, double x_max, int n_ticks, const char** labels = NULL, bool show_default = false);
+void SetNextPlotTicksX(std::vector<double> values, std::vector<std::string> labels, bool show_default = false);
+void SetNextPlotTicksX(double x_min, double x_max, std::vector<std::string> labels, bool show_default = false);
 
 // Set the Y axis ticks and optionally the labels for the next plot.
-void SetNextPlotTicksY(const double* values, int n_ticks, const char** labels = NULL, bool show_default = false, int y_axis = 0);
-void SetNextPlotTicksY(double y_min, double y_max, int n_ticks, const char** labels = NULL, bool show_default = false, int y_axis = 0);
+void SetNextPlotTicksY(std::vector<double> values, std::vector<std::string> labels, bool show_default = false, int y_axis = 0);
+void SetNextPlotTicksY(double y_min, double y_max, std::vector<std::string> labels, bool show_default = false, int y_axis = 0);
 
 // Select which Y axis will be used for subsequent plot elements. The default is '0', or the first (left) Y axis. Enable 2nd and 3rd axes with ImPlotFlags_YAxisX.
 void SetPlotYAxis(int y_axis);

@@ -54,37 +54,37 @@ namespace ImPlot {
 // Interprets an array of Y points as ImPlotPoints where the X value is the index
 template <typename T>
 struct GetterYs {
-    GetterYs(const T* ys, int count, int offset, int stride) {
+    GetterYs(std::vector<T> ys, int offset, int stride) {
         Ys = ys;
-        Count = count;
-        Offset = count ? ImPosMod(offset, count) : 0;
+        Count = ys.size();
+        Offset = Count ? ImPosMod(offset, Count) : 0;
         Stride = stride;
     }
-    const T* Ys;
+    std::vector<T> Ys;
     int Count;
     int Offset;
     int Stride;
     inline ImPlotPoint operator()(int idx) {
-        return ImPlotPoint((T)idx, OffsetAndStride(Ys, idx, Count, Offset, Stride));
+        return ImPlotPoint((T)idx, Ys[idx]);
     }
 };
 
 // Interprets separate arrays for X and Y points as ImPlotPoints
 template <typename T>
 struct GetterXsYs {
-    GetterXsYs(const T* xs, const T* ys, int count, int offset, int stride) {
+    GetterXsYs(std::vector<T> xs, std::vector<T> ys, int offset, int stride) {
         Xs = xs; Ys = ys;
-        Count = count;
-        Offset = count ? ImPosMod(offset, count) : 0;
+        Count = xs.size();
+        Offset = Count ? ImPosMod(offset, Count) : 0;
         Stride = stride;
     }
-    const T* Xs;
-    const T* Ys;
+    std::vector<T> Xs;
+    std::vector<T> Ys;
     int Count;
     int Offset;
     int Stride;
     inline ImPlotPoint operator()(int idx) {
-        return ImPlotPoint(OffsetAndStride(Xs, idx, Count, Offset, Stride), OffsetAndStride(Ys, idx, Count, Offset, Stride));
+        return ImPlotPoint(Xs[idx], Ys[idx]);
     }
 };
 
@@ -102,20 +102,21 @@ struct GetterYRef {
 // Interprets an array of X points as ImPlotPoints where the Y value is a constant reference value
 template <typename T>
 struct GetterXsYRef {
-    GetterXsYRef(const T* xs, T y_ref, int count, int offset, int stride) {
+    GetterXsYRef(std::vector<T> xs, T y_ref, int offset, int stride) {
         Xs = xs;
         YRef = y_ref;
-        Count = count;
-        Offset = count ? ImPosMod(offset, count) : 0;
+        Count = xs.size();
+        Offset = Count ? ImPosMod(offset, Count) : 0;
         Stride = stride;
     }
-    const T* Xs;
+    std::vector<T> Xs;
     T YRef;
     int Count;
     int Offset;
     int Stride;
-    inline ImPlotPoint operator()(int idx) {
-        return ImPlotPoint(OffsetAndStride(Xs, idx, Count, Offset, Stride), YRef);
+    inline ImPlotPoint operator()(int idx)
+    {
+        return ImPlotPoint(Xs[idx], YRef);
     }
 };
 
@@ -171,29 +172,26 @@ struct GetterFuncPtrImPlotPoint {
 
 template <typename T>
 struct GetterBarV {
-    const T* Ys; T XShift; int Count; int Offset; int Stride;
-    GetterBarV(const T* ys, T xshift, int count, int offset, int stride) { Ys = ys; XShift = xshift; Count = count; Offset = offset; Stride = stride; }
-    inline ImPlotPoint operator()(int idx) { return ImPlotPoint((T)idx + XShift, OffsetAndStride(Ys, idx, Count, Offset, Stride)); }
+    std::vector<T> Ys; T XShift; int Count; int Offset; int Stride;
+    GetterBarV(std::vector<T> ys, T xshift, int offset, int stride) { Ys = ys; XShift = xshift; Count = Ys.size(); Offset = offset; Stride = stride; }
+    inline ImPlotPoint operator()(int idx) { return ImPlotPoint((double)idx + XShift, Ys[idx]); }
 };
 
 template <typename T>
 struct GetterBarH {
-    const T* Xs; T YShift; int Count; int Offset; int Stride;
-    GetterBarH(const T* xs, T yshift, int count, int offset, int stride) { Xs = xs; YShift = yshift; Count = count; Offset = offset; Stride = stride; }
-    inline ImPlotPoint operator()(int idx) { return ImPlotPoint(OffsetAndStride(Xs, idx, Count, Offset, Stride), (T)idx + YShift); }
+    std::vector<T> Xs; T YShift; int Count; int Offset; int Stride;
+    GetterBarH(std::vector<T> xs, T yshift, int offset, int stride) { Xs = xs; YShift = yshift; Count = Xs.size(); Offset = offset; Stride = stride; }
+    inline ImPlotPoint operator()(int idx) { return ImPlotPoint(Xs[idx], (double)idx + YShift); }
 };
 
 template <typename T>
 struct GetterError {
-    const T* Xs; const T* Ys; const T* Neg; const T* Pos; int Count; int Offset; int Stride;
-    GetterError(const T* xs, const T* ys, const T* neg, const T* pos, int count, int offset, int stride) {
-        Xs = xs; Ys = ys; Neg = neg; Pos = pos; Count = count; Offset = offset; Stride = stride;
+    std::vector<T> Xs; std::vector<T> Ys; std::vector<T> Neg; std::vector<T> Pos; int Count; int Offset; int Stride;
+    GetterError(std::vector<T> xs, std::vector<T> ys, std::vector<T> neg, std::vector<T> pos, int offset, int stride) {
+        Xs = xs; Ys = ys; Neg = neg; Pos = pos; Count = xs.size(); Offset = offset; Stride = stride;
     }
     ImPlotPointError operator()(int idx) {
-        return ImPlotPointError(OffsetAndStride(Xs,  idx, Count, Offset, Stride),
-                                OffsetAndStride(Ys,  idx, Count, Offset, Stride),
-                                OffsetAndStride(Neg, idx, Count, Offset, Stride),
-                                OffsetAndStride(Pos, idx, Count, Offset, Stride));
+        return ImPlotPointError(Xs[idx], Ys[idx], Neg[idx], Pos[idx]);
     }
 };
 
@@ -481,7 +479,7 @@ inline void RenderPrimitives(Renderer renderer, ImDrawList& DrawList) {
 template <typename Getter, typename Transformer>
 inline void RenderLineStrip(Getter getter, Transformer transformer, ImDrawList& DrawList, float line_weight, ImU32 col) {
     ImPlotContext& gp = *GImPlot;
-    if (ImHasFlag(gp.CurrentPlot->Flags, ImPlotFlags_AntiAliased) || gp.Style.AntiAliasedLines) {
+    if (ImHasFlag(gp.CurrentPlot->Flags, ImPlotFlags_AntiAliased)) {
         ImVec2 p1 = transformer(getter(0));
         for (int i = 0; i < getter.Count; ++i) {
             ImVec2 p2 = transformer(getter(i));
@@ -674,13 +672,13 @@ inline void PlotEx(const char* label_id, Getter getter)
 
 
 // float
-void PlotLine(const char* label_id, const float* values, int count, int offset, int stride) {
-    GetterYs<float> getter(values,count,offset,stride);
+void PlotLine(const char* label_id, std::vector<float> values, int offset, int stride) {
+    GetterYs<float> getter(values,offset,stride);
     PlotEx(label_id, getter);
 }
 
-void PlotLine(const char* label_id, const float* xs, const float* ys, int count, int offset, int stride) {
-    GetterXsYs<float> getter(xs,ys,count,offset,stride);
+void PlotLine(const char* label_id, std::vector<float> xs, std::vector<float> ys, int offset, int stride) {
+    GetterXsYs<float> getter(xs,ys,offset,stride);
     return PlotEx(label_id, getter);
 }
 
@@ -691,13 +689,13 @@ void PlotLine(const char* label_id, const ImVec2* data, int count, int offset) {
 
 
 // double
-void PlotLine(const char* label_id, const double* values, int count, int offset, int stride) {
-    GetterYs<double> getter(values,count,offset,stride);
+void PlotLine(const char* label_id, std::vector<double> values, int offset, int stride) {
+    GetterYs<double> getter(values,offset,stride);
     PlotEx(label_id, getter);
 }
 
-void PlotLine(const char* label_id, const double* xs, const double* ys, int count, int offset, int stride) {
-    GetterXsYs<double> getter(xs,ys,count,offset,stride);
+void PlotLine(const char* label_id, std::vector<double> xs, std::vector<double> ys, int offset, int stride) {
+    GetterXsYs<double> getter(xs,ys,offset,stride);
     return PlotEx(label_id, getter);
 }
 
@@ -728,34 +726,34 @@ inline int PushScatterStyle() {
 }
 
 // float
-void PlotScatter(const char* label_id, const float* values, int count, int offset, int stride) {
+void PlotScatter(const char* label_id, std::vector<float> values, int offset, int stride) {
     int vars = PushScatterStyle();
-    PlotLine(label_id, values, count, offset, stride);
+    PlotLine(label_id, values, offset, stride);
     PopStyleVar(vars);
 }
 
-void PlotScatter(const char* label_id, const float* xs, const float* ys, int count, int offset, int stride) {
+void PlotScatter(const char* label_id, std::vector<float> xs, std::vector<float> ys, int offset, int stride) {
     int vars = PushScatterStyle();
-    PlotLine(label_id, xs, ys, count, offset, stride);
+    PlotLine(label_id, xs, ys, offset, stride);
     PopStyleVar(vars);
 }
 
-void PlotScatter(const char* label_id, const ImVec2* data, int count, int offset) {
+void PlotScatter(const char* label_id, const ImVec2* data, int offset) {
     int vars = PushScatterStyle();
-    PlotLine(label_id, data, count, offset);
+    PlotLine(label_id, data, offset);
     PopStyleVar(vars);
 }
 
 // double
-void PlotScatter(const char* label_id, const double* values, int count, int offset, int stride) {
+void PlotScatter(const char* label_id, std::vector<double> values, int offset, int stride) {
     int vars = PushScatterStyle();
-    PlotLine(label_id, values, count, offset, stride);
+    PlotLine(label_id, values, offset, stride);
     PopStyleVar(vars);
 }
 
-void PlotScatter(const char* label_id, const double* xs, const double* ys, int count, int offset, int stride) {
+void PlotScatter(const char* label_id, std::vector<double> xs, std::vector<double> ys, int offset, int stride) {
     int vars = PushScatterStyle();
-    PlotLine(label_id, xs, ys, count, offset, stride);
+    PlotLine(label_id, xs, ys, offset, stride);
     PopStyleVar(vars);
 }
 
@@ -820,39 +818,40 @@ inline void PlotShadedEx(const char* label_id, Getter1 getter1, Getter2 getter2)
 
 // float
 
-void PlotShaded(const char* label_id, const float* values, int count, float y_ref, int offset, int stride) {
-    GetterYs<float> getter1(values,count,offset,stride);
-    GetterYRef<float> getter2(y_ref, count);
-    PlotShadedEx(label_id, getter1, getter2);}
-
-void PlotShaded(const char* label_id, const float* xs, const float* ys1, const float* ys2, int count, int offset, int stride) {
-    GetterXsYs<float> getter1(xs, ys1, count, offset, stride);
-    GetterXsYs<float> getter2(xs, ys2, count, offset, stride);
+void PlotShaded(const char* label_id, std::vector<float> values, float y_ref, int offset, int stride) {
+    GetterYs<float> getter1(values,offset,stride);
+    GetterYRef<float> getter2(y_ref, values.size());
     PlotShadedEx(label_id, getter1, getter2);
 }
 
-void PlotShaded(const char* label_id, const float* xs, const float* ys, int count, float y_ref, int offset, int stride) {
-    GetterXsYs<float> getter1(xs, ys, count, offset, stride);
-    GetterXsYRef<float> getter2(xs, y_ref, count, offset, stride);
+void PlotShaded(const char* label_id, std::vector<float> xs, std::vector<float> ys1, std::vector<float> ys2, int offset, int stride) {
+    GetterXsYs<float> getter1(xs, ys1, offset, stride);
+    GetterXsYs<float> getter2(xs, ys2, offset, stride);
+    PlotShadedEx(label_id, getter1, getter2);
+}
+
+void PlotShaded(const char* label_id, std::vector<float> xs, std::vector<float> ys, float y_ref, int offset, int stride) {
+    GetterXsYs<float> getter1(xs, ys, offset, stride);
+    GetterXsYRef<float> getter2(xs, y_ref, offset, stride);
     PlotShadedEx(label_id, getter1, getter2);
 }
 
 // double
-void PlotShaded(const char* label_id, const double* values, int count, double y_ref, int offset, int stride) {
-    GetterYs<double> getter1(values,count,offset,stride);
-    GetterYRef<double> getter2(y_ref, count);
+void PlotShaded(const char* label_id, std::vector<double> values, double y_ref, int offset, int stride) {
+    GetterYs<double> getter1(values,offset,stride);
+    GetterYRef<double> getter2(y_ref, values.size());
     PlotShadedEx(label_id, getter1, getter2);
 }
 
-void PlotShaded(const char* label_id, const double* xs, const double* ys1, const double* ys2, int count, int offset, int stride) {
-    GetterXsYs<double> getter1(xs, ys1, count, offset, stride);
-    GetterXsYs<double> getter2(xs, ys2, count, offset, stride);
+void PlotShaded(const char* label_id, std::vector<double> xs, std::vector<double> ys1, std::vector<double> ys2, int offset, int stride) {
+    GetterXsYs<double> getter1(xs, ys1, offset, stride);
+    GetterXsYs<double> getter2(xs, ys2, offset, stride);
     PlotShadedEx(label_id, getter1, getter2);
 }
 
-void PlotShaded(const char* label_id, const double* xs, const double* ys, int count, double y_ref, int offset, int stride) {
-    GetterXsYs<double> getter1(xs, ys, count, offset, stride);
-    GetterXsYRef<double> getter2(xs, y_ref, count, offset, stride);
+void PlotShaded(const char* label_id, std::vector<double> xs, std::vector<double> ys, double y_ref, int offset, int stride) {
+    GetterXsYs<double> getter1(xs, ys, offset, stride);
+    GetterXsYRef<double> getter2(xs, y_ref, offset, stride);
     PlotShadedEx(label_id, getter1, getter2);
 }
 
@@ -911,24 +910,24 @@ void PlotBarsEx(const char* label_id, Getter getter, TWidth width) {
 }
 
 // float
-void PlotBars(const char* label_id, const float* values, int count, float width, float shift, int offset, int stride) {
-    GetterBarV<float> getter(values,shift,count,offset,stride);
+void PlotBars(const char* label_id, std::vector<float> values, float width, float shift, int offset, int stride) {
+    GetterBarV<float> getter(values,shift,offset,stride);
     PlotBarsEx(label_id, getter, width);
 }
 
-void PlotBars(const char* label_id, const float* xs, const float* ys, int count, float width, int offset, int stride) {
-    GetterXsYs<float> getter(xs,ys,count,offset,stride);
+void PlotBars(const char* label_id, std::vector<float> xs, std::vector<float> ys, int count, float width, int offset, int stride) {
+    GetterXsYs<float> getter(xs,ys,offset,stride);
     PlotBarsEx(label_id, getter, width);
 }
 
 // double
-void PlotBars(const char* label_id, const double* values, int count, double width, double shift, int offset, int stride) {
-    GetterBarV<double> getter(values,shift,count,offset,stride);
+void PlotBars(const char* label_id, std::vector<double> values, double width, double shift, int offset, int stride) {
+    GetterBarV<double> getter(values,shift,offset,stride);
     PlotBarsEx(label_id, getter, width);
 }
 
-void PlotBars(const char* label_id, const double* xs, const double* ys, int count, double width, int offset, int stride) {
-    GetterXsYs<double> getter(xs,ys,count,offset,stride);
+void PlotBars(const char* label_id, std::vector<double> xs, std::vector<double> ys, double width, int offset, int stride) {
+    GetterXsYs<double> getter(xs,ys,offset,stride);
     PlotBarsEx(label_id, getter, width);
 }
 
@@ -988,24 +987,24 @@ void PlotBarsHEx(const char* label_id, Getter getter, THeight height) {
 }
 
 // float
-void PlotBarsH(const char* label_id, const float* values, int count, float height, float shift, int offset, int stride) {
-    GetterBarH<float> getter(values,shift,count,offset,stride);
+void PlotBarsH(const char* label_id, std::vector<float> values, float height, float shift, int offset, int stride) {
+    GetterBarH<float> getter(values,shift,offset,stride);
     PlotBarsHEx(label_id, getter, height);
 }
 
-void PlotBarsH(const char* label_id, const float* xs, const float* ys, int count, float height,  int offset, int stride) {
-    GetterXsYs<float> getter(xs,ys,count,offset,stride);
+void PlotBarsH(const char* label_id, std::vector<float> xs, std::vector<float> ys, int count, float height,  int offset, int stride) {
+    GetterXsYs<float> getter(xs,ys,offset,stride);
     PlotBarsHEx(label_id, getter, height);
 }
 
 // double
-void PlotBarsH(const char* label_id, const double* values, int count, double height, double shift, int offset, int stride) {
-    GetterBarH<double> getter(values,shift,count,offset,stride);
+void PlotBarsH(const char* label_id, std::vector<double> values, double height, double shift, int offset, int stride) {
+    GetterBarH<double> getter(values,shift,offset,stride);
     PlotBarsHEx(label_id, getter, height);
 }
 
-void PlotBarsH(const char* label_id, const double* xs, const double* ys, int count, double height,  int offset, int stride) {
-    GetterXsYs<double> getter(xs,ys,count,offset,stride);
+void PlotBarsH(const char* label_id, std::vector<double> xs, std::vector<double> ys, double height,  int offset, int stride) {
+    GetterXsYs<double> getter(xs,ys,offset,stride);
     PlotBarsHEx(label_id, getter, height);
 }
 
@@ -1058,24 +1057,24 @@ void PlotErrorBarsEx(const char* label_id, Getter getter) {
 }
 
 // float
-void PlotErrorBars(const char* label_id, const float* xs, const float* ys, const float* err, int count, int offset, int stride) {
-    GetterError<float> getter(xs, ys, err, err, count, offset, stride);
+void PlotErrorBars(const char* label_id, std::vector<float> xs, std::vector<float> ys, std::vector<float> err, int offset, int stride) {
+    GetterError<float> getter(xs, ys, err, err, offset, stride);
     PlotErrorBarsEx(label_id, getter);
 }
 
-void PlotErrorBars(const char* label_id, const float* xs, const float* ys, const float* neg, const float* pos, int count, int offset, int stride) {
-    GetterError<float> getter(xs, ys, neg, pos, count, offset, stride);
+void PlotErrorBars(const char* label_id, std::vector<float> xs, std::vector<float> ys, std::vector<float> neg, std::vector<float> pos, int offset, int stride) {
+    GetterError<float> getter(xs, ys, neg, pos, offset, stride);
     PlotErrorBarsEx(label_id, getter);
 }
 
 // double
-void PlotErrorBars(const char* label_id, const double* xs, const double* ys, const double* err, int count, int offset, int stride) {
-    GetterError<double> getter(xs, ys, err, err, count, offset, stride);
+void PlotErrorBars(const char* label_id, std::vector<double> xs, std::vector<double> ys, std::vector<double> err, int offset, int stride) {
+    GetterError<double> getter(xs, ys, err, err, offset, stride);
     PlotErrorBarsEx(label_id, getter);
 }
 
-void PlotErrorBars(const char* label_id, const double* xs, const double* ys, const double* neg, const double* pos, int count, int offset, int stride) {
-    GetterError<double> getter(xs, ys, neg, pos, count, offset, stride);
+void PlotErrorBars(const char* label_id, std::vector<double> xs, std::vector<double> ys, std::vector<double> neg, std::vector<double> pos, int offset, int stride) {
+    GetterError<double> getter(xs, ys, neg, pos, offset, stride);
     PlotErrorBarsEx(label_id, getter);
 }
 
@@ -1122,24 +1121,24 @@ void PlotErrorBarsHEx(const char* label_id, Getter getter) {
 }
 
 // float
-void PlotErrorBarsH(const char* label_id, const float* xs, const float* ys, const float* err, int count, int offset, int stride) {
-    GetterError<float> getter(xs, ys, err, err, count, offset, stride);
+void PlotErrorBarsH(const char* label_id, std::vector<float> xs, std::vector<float> ys, std::vector<float> err, int offset, int stride) {
+    GetterError<float> getter(xs, ys, err, err, offset, stride);
     PlotErrorBarsHEx(label_id, getter);
 }
 
-void PlotErrorBarsH(const char* label_id, const float* xs, const float* ys, const float* neg, const float* pos, int count, int offset, int stride) {
-    GetterError<float> getter(xs, ys, neg, pos, count, offset, stride);
+void PlotErrorBarsH(const char* label_id, std::vector<float> xs, std::vector<float> ys, std::vector<float> neg, std::vector<float> pos, int offset, int stride) {
+    GetterError<float> getter(xs, ys, neg, pos, offset, stride);
     PlotErrorBarsHEx(label_id, getter);
 }
 
 // double
-void PlotErrorBarsH(const char* label_id, const double* xs, const double* ys, const double* err, int count, int offset, int stride) {
-    GetterError<double> getter(xs, ys, err, err, count, offset, stride);
+void PlotErrorBarsH(const char* label_id, std::vector<double> xs, std::vector<double> ys, std::vector<double> err, int offset, int stride) {
+    GetterError<double> getter(xs, ys, err, err, offset, stride);
     PlotErrorBarsHEx(label_id, getter);
 }
 
-void PlotErrorBarsH(const char* label_id, const double* xs, const double* ys, const double* neg, const double* pos, int count, int offset, int stride) {
-    GetterError<double> getter(xs, ys, neg, pos, count, offset, stride);
+void PlotErrorBarsH(const char* label_id, std::vector<double> xs, std::vector<double> ys, std::vector<double> neg, std::vector<double> pos, int offset, int stride) {
+    GetterError<double> getter(xs, ys, neg, pos, offset, stride);
     PlotErrorBarsHEx(label_id, getter);
 }
 
@@ -1161,10 +1160,10 @@ inline void RenderPieSlice(ImDrawList& DrawList, const ImPlotPoint& center, doub
 }
 
 template <typename T>
-void PlotPieChartEx(const char** label_ids, const T* values, int count, T x, T y, T radius, bool normalize, const char* fmt, T angle0) {
+void PlotPieChartEx(std::vector<std::string> label_ids, std::vector<T> values, T x, T y, T radius, bool normalize, const char* fmt, T angle0) {
     IM_ASSERT_USER_ERROR(GImPlot->CurrentPlot != NULL, "PlotPieChart() needs to be called between BeginPlot() and EndPlot()!");
     ImDrawList & DrawList = *ImGui::GetWindowDrawList();
-
+    int count = values.size();
     T sum = 0;
     for (int i = 0; i < count; ++i)
         sum += values[i];
@@ -1177,7 +1176,7 @@ void PlotPieChartEx(const char** label_ids, const T* values, int count, T x, T y
     T a0 = angle0 * 2 * IM_PI / 360.0f;
     T a1 = angle0 * 2 * IM_PI / 360.0f;
     for (int i = 0; i < count; ++i) {
-        ImPlotItem* item = RegisterOrGetItem(label_ids[i]);
+        ImPlotItem* item = RegisterOrGetItem(label_ids[i].c_str());
         ImU32 col = ImGui::GetColorU32(GetItemFillColor(item));
         T percent = normalize ? values[i] / sum : values[i];
         a1 = a0 + 2 * IM_PI * percent;
@@ -1197,7 +1196,7 @@ void PlotPieChartEx(const char** label_ids, const T* values, int count, T x, T y
         a1 = angle0 * 2 * IM_PI / 360.0f;
         char buffer[32];
         for (int i = 0; i < count; ++i) {
-            ImPlotItem* item = GetItem(label_ids[i]);
+            ImPlotItem* item = GetItem(label_ids[i].c_str());
             T percent = normalize ? values[i] / sum : values[i];
             a1 = a0 + 2 * IM_PI * percent;
             if (item->Show) {
@@ -1215,13 +1214,13 @@ void PlotPieChartEx(const char** label_ids, const T* values, int count, T x, T y
 }
 
 // float
-void PlotPieChart(const char** label_ids, const float* values, int count, float x, float y, float radius, bool normalize, const char* fmt, float angle0) {
-    return PlotPieChartEx(label_ids, values, count, x, y, radius, normalize, fmt, angle0);
+void PlotPieChart(std::vector<std::string> label_ids, std::vector<float> values, float x, float y, float radius, bool normalize, const char* fmt, float angle0) {
+    return PlotPieChartEx(label_ids, values, x, y, radius, normalize, fmt, angle0);
 }
 
 // double
-void PlotPieChart(const char** label_ids, const double* values, int count, double x, double y, double radius, bool normalize, const char* fmt, double angle0) {
-    return PlotPieChartEx(label_ids, values, count, x, y, radius, normalize, fmt, angle0);
+void PlotPieChart(std::vector<std::string> label_ids, std::vector<double> values, double x, double y, double radius, bool normalize, const char* fmt, double angle0) {
+    return PlotPieChartEx(label_ids, values, x, y, radius, normalize, fmt, angle0);
 }
 
 //-----------------------------------------------------------------------------
@@ -1229,7 +1228,7 @@ void PlotPieChart(const char** label_ids, const double* values, int count, doubl
 //-----------------------------------------------------------------------------
 
 template <typename T, typename Transformer>
-void RenderHeatmap(Transformer transformer, ImDrawList& DrawList, const T* values, int rows, int cols, T scale_min, T scale_max, const char* fmt, const ImPlotPoint& bounds_min, const ImPlotPoint& bounds_max) {
+void RenderHeatmap(Transformer transformer, ImDrawList& DrawList, std::vector<T> values, int rows, int cols, T scale_min, T scale_max, const char* fmt, const ImPlotPoint& bounds_min, const ImPlotPoint& bounds_max) {
     ImPlotContext& gp = *GImPlot;
     const double w = (bounds_max.x - bounds_min.x) / cols;
     const double h = (bounds_max.y - bounds_min.y) / rows;
@@ -1272,7 +1271,7 @@ void RenderHeatmap(Transformer transformer, ImDrawList& DrawList, const T* value
 }
 
 template <typename T>
-void PlotHeatmapEx(const char* label_id, const T* values, int rows, int cols, T scale_min, T scale_max, const char* fmt, const ImPlotPoint& bounds_min, const ImPlotPoint& bounds_max) {
+void PlotHeatmapEx(const char* label_id, std::vector<T> values, int rows, int cols, T scale_min, T scale_max, const char* fmt, const ImPlotPoint& bounds_min, const ImPlotPoint& bounds_max) {
     ImPlotContext& gp = *GImPlot;
     IM_ASSERT_USER_ERROR(gp.CurrentPlot != NULL, "PlotHeatmap() needs to be called between BeginPlot() and EndPlot()!");
     IM_ASSERT_USER_ERROR(scale_min != scale_max, "Scale values must be different!");
@@ -1299,12 +1298,12 @@ void PlotHeatmapEx(const char* label_id, const T* values, int rows, int cols, T 
 }
 
 // float
-void PlotHeatmap(const char* label_id, const float* values, int rows, int cols, float scale_min, float scale_max, const char* fmt, const ImPlotPoint& bounds_min, const ImPlotPoint& bounds_max) {
+void PlotHeatmap(const char* label_id, std::vector<float> values, int rows, int cols, float scale_min, float scale_max, const char* fmt, const ImPlotPoint& bounds_min, const ImPlotPoint& bounds_max) {
     return PlotHeatmapEx(label_id, values, rows, cols, scale_min, scale_max, fmt, bounds_min, bounds_max);
 }
 
 // double
-void PlotHeatmap(const char* label_id, const double* values, int rows, int cols, double scale_min, double scale_max, const char* fmt, const ImPlotPoint& bounds_min, const ImPlotPoint& bounds_max) {
+void PlotHeatmap(const char* label_id, std::vector<double> values, int rows, int cols, double scale_min, double scale_max, const char* fmt, const ImPlotPoint& bounds_min, const ImPlotPoint& bounds_max) {
     return PlotHeatmapEx(label_id, values, rows, cols, scale_min, scale_max, fmt, bounds_min, bounds_max);
 }
 
@@ -1377,14 +1376,14 @@ inline void PlotDigitalEx(const char* label_id, Getter getter)
 }
 
 // float
-void PlotDigital(const char* label_id, const float* xs, const float* ys, int count, int offset, int stride) {
-    GetterXsYs<float> getter(xs,ys,count,offset,stride);
+void PlotDigital(const char* label_id, std::vector<float> xs, std::vector<float> ys, int offset, int stride) {
+    GetterXsYs<float> getter(xs,ys,offset,stride);
     return PlotDigitalEx(label_id, getter);
 }
 
 // double
-void PlotDigital(const char* label_id, const double* xs, const double* ys, int count, int offset, int stride) {
-    GetterXsYs<double> getter(xs,ys,count,offset,stride);
+void PlotDigital(const char* label_id, std::vector<double> xs, std::vector<double> ys, int offset, int stride) {
+    GetterXsYs<double> getter(xs,ys,offset,stride);
     return PlotDigitalEx(label_id, getter);
 }
 
@@ -1435,14 +1434,14 @@ void PlotRectsEx(const char* label_id, Getter getter) {
 }
 
 // float
-void PlotRects(const char* label_id, const float* xs, const float* ys, int count, int offset, int stride) {
-    GetterXsYs<float> getter(xs,ys,count,offset,stride);
+void PlotRects(const char* label_id, std::vector<float> xs, std::vector<float> ys, int offset, int stride) {
+    GetterXsYs<float> getter(xs,ys,offset,stride);
     PlotRectsEx(label_id, getter);
 }
 
 // double
-void PlotRects(const char* label_id, const double* xs, const double* ys, int count, int offset, int stride) {
-    GetterXsYs<double> getter(xs,ys,count,offset,stride);
+void PlotRects(const char* label_id, std::vector<double> xs, std::vector<double> ys, int offset, int stride) {
+    GetterXsYs<double> getter(xs,ys,offset,stride);
     PlotRectsEx(label_id, getter);
 }
 
